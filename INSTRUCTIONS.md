@@ -40,10 +40,8 @@ Note: Each row represents one sidewalk defect inspection location.
 
 ## Step 1: Project Setup (approx. 5 minutes)
 
-a. Create a new GitHub repository (e.g., nyc-sidewalk-wellness-score).
-b. Clone the repository to your local machine:
-$ git clone <your_repository_URL>
-$ cd nyc-sidewalk-wellness-score
+a. ive created a github repository for this project.
+b. understand the project's objective and dataset, and create an appropriate project folder structure for employers
 c. Set up a Python virtual environment and activate it:
 $ python -m venv venv
 $ source venv/bin/activate (On Windows: venv\Scripts\activate)
