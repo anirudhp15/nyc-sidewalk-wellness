@@ -5,6 +5,8 @@ from streamlit_folium import st_folium
 import plotly.express as px
 import os
 import json
+import numpy as np
+from branca.colormap import LinearColormap
 
 # Set page configuration
 st.set_page_config(
@@ -87,6 +89,26 @@ def load_data():
     return wellness_df, geo_df, has_geo, zipcode_field
 
 
+# Custom function to get color based on wellness score
+def get_color(score):
+    if score is None:
+        return "#CCCCCC"  # Gray for missing data
+    elif score >= 90:
+        return "#006400"  # Dark green
+    elif score >= 75:
+        return "#228B22"  # Forest green
+    elif score >= 60:
+        return "#32CD32"  # Lime green
+    elif score >= 45:
+        return "#ADFF2F"  # Green yellow
+    elif score >= 30:
+        return "#FFFF00"  # Yellow
+    elif score >= 15:
+        return "#FFA500"  # Orange
+    else:
+        return "#FF0000"  # Red
+
+
 # Main function
 def main():
     # Add title and description
@@ -140,47 +162,56 @@ def main():
                 f"Using '{zipcode_field}' as the ZIP code field in the geospatial data."
             )
 
-            # Create a custom color scale function
-            def get_color(score):
-                if score is None:
-                    return "#CCCCCC"  # Gray for missing data
-                elif score >= 90:
-                    return "#006400"  # Dark green
-                elif score >= 75:
-                    return "#228B22"  # Forest green
-                elif score >= 60:
-                    return "#32CD32"  # Lime green
-                elif score >= 45:
-                    return "#ADFF2F"  # Green yellow
-                elif score >= 30:
-                    return "#FFFF00"  # Yellow
-                elif score >= 15:
-                    return "#FFA500"  # Orange
-                else:
-                    return "#FF0000"  # Red
-
             # Create a folium map centered on NYC
             m = folium.Map(
                 location=[40.7128, -74.0060], zoom_start=10, tiles="CartoDB positron"
             )
 
-            # Add ZIP code boundaries with styling
-            choropleth = folium.Choropleth(
-                geo_data=geo_df,
-                data=wellness_df,
-                columns=["zipcode", "wellness_score"],
-                key_on=f"feature.properties.{zipcode_field}",
-                fill_color="YlGn",
-                fill_opacity=0.7,
-                line_opacity=0.2,
-                legend_name="Wellness Score (%)",
-                highlight=True,
-                nan_fill_color="#CCCCCC",
+            # Create a custom colormap from red to green
+            colors = [
+                "#FF0000",
+                "#FFA500",
+                "#FFFF00",
+                "#ADFF2F",
+                "#32CD32",
+                "#228B22",
+                "#006400",
+            ]
+            custom_cm = LinearColormap(
+                colors, vmin=0, vmax=100, caption="Wellness Score (%)"
             )
-            choropleth.add_to(m)
+
+            # Create a lookup dictionary for easier access to wellness scores
+            score_dict = dict(
+                zip(wellness_df["zipcode"].astype(str), wellness_df["wellness_score"])
+            )
+            inspection_dict = dict(
+                zip(wellness_df["zipcode"].astype(str), wellness_df["inspection_count"])
+            )
+
+            # Define style function
+            def style_function(feature):
+                zipcode = feature["properties"].get(zipcode_field)
+                if zipcode in score_dict:
+                    score = score_dict[zipcode]
+                    color = get_color(score)
+                else:
+                    color = "#CCCCCC"  # Gray for missing data
+
+                return {
+                    "fillColor": color,
+                    "color": "#000000",
+                    "weight": 1,
+                    "fillOpacity": 0.7,
+                }
+
+            # Add GeoJSON layer with custom styling
+            geojson = folium.GeoJson(
+                data=geo_df, style_function=style_function, name="Wellness Scores"
+            )
 
             # Add tooltips to show information when hovering over a ZIP code
-            folium.GeoJsonTooltip(
+            tooltip = folium.GeoJsonTooltip(
                 fields=[zipcode_field, "wellness_score", "inspection_count"],
                 aliases=["ZIP Code:", "Wellness Score (%):", "Inspection Count:"],
                 localize=True,
@@ -192,7 +223,12 @@ def main():
                     border-radius: 3px;
                     box-shadow: 3px;
                 """,
-            ).add_to(choropleth.geojson)
+            )
+            tooltip.add_to(geojson)
+            geojson.add_to(m)
+
+            # Add a legend
+            custom_cm.add_to(m)
 
             # Display the map using streamlit-folium
             st_folium(m, width=1000, height=600, returned_objects=[])
@@ -233,7 +269,7 @@ def main():
                 title="Top 20 ZIP Codes by Wellness Score",
                 labels={"zipcode": "ZIP Code", "wellness_score": "Wellness Score (%)"},
                 color="wellness_score",
-                color_continuous_scale="YlGn",
+                color_continuous_scale="RdYlGn",  # Red-Yellow-Green scale
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -249,7 +285,7 @@ def main():
                 title="Top 20 ZIP Codes by Wellness Score",
                 labels={"zipcode": "ZIP Code", "wellness_score": "Wellness Score (%)"},
                 color="wellness_score",
-                color_continuous_scale="YlGn",
+                color_continuous_scale="RdYlGn",  # Red-Yellow-Green scale
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -427,7 +463,7 @@ def main():
         # Show the data with styling
         st.dataframe(
             filtered_df.style.background_gradient(
-                subset=["wellness_score"], cmap="YlGn", vmin=0, vmax=100
+                subset=["wellness_score"], cmap="RdYlGn", vmin=0, vmax=100
             ),
             height=500,
             use_container_width=True,
